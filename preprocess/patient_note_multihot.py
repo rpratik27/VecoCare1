@@ -6,6 +6,7 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 import pickle
+from tqdm import tqdm  # Import tqdm for progress bars
 
 # Initialize stemmer and stopwords
 ps = PorterStemmer()
@@ -13,7 +14,7 @@ stopwords_set = set(stopwords.words('english'))
 
 def parse_notes(path) -> dict:
     print('Parsing NOTEEVENTS.csv ...')
-    notes_path = os.path.join(path, 'NOTEEVENTS_subset2.csv')
+    notes_path = os.path.join(path, 'NOTEEVENTS_subset.csv')
     notes = pd.read_csv(
         notes_path,
         usecols=['SUBJECT_ID', 'HADM_ID', 'TEXT'],
@@ -24,11 +25,16 @@ def parse_notes(path) -> dict:
     print(f'Processed {len(visit_notes)} visits')
     return visit_notes
 
-def extract_word(text: str) -> list:
+def extract_word(text: str, max_words=512, max_text_words=2000) -> list:
     """Extract words from text, apply stemming, and remove stopwords, ignoring [CLS] token."""
     text = re.sub(r'[^A-Za-z_]', ' ', text.strip().lower())
     words = word_tokenize(text)
-    return [ps.stem(word) for word in words if word not in stopwords_set and word != '[cls]']
+    # Limit to the first 2000 words before processing
+    words = words[:max_text_words]
+    # Apply stemming and remove stopwords
+    processed_words = [ps.stem(word) for word in words if word not in stopwords_set and word != '[cls]']
+    # Return only the first 512 processed words
+    return processed_words[:max_words]
 
 def encode_note_train(visit_notes: dict, vocab_size=None) -> (dict, dict):
     print('Encoding notes ...')
@@ -37,7 +43,7 @@ def encode_note_train(visit_notes: dict, vocab_size=None) -> (dict, dict):
     
     # Create vocabulary
     vocab_index = 0
-    for (_, _), text in visit_notes.items():
+    for (_, _), text in tqdm(visit_notes.items(), desc="Building Vocabulary"):
         words = extract_word(text)
         for word in words:
             if word not in dictionary:
@@ -47,7 +53,7 @@ def encode_note_train(visit_notes: dict, vocab_size=None) -> (dict, dict):
     vocab_size = vocab_size or vocab_index
     
     patient_visits = {}
-    for (pid, vid), text in visit_notes.items():
+    for (pid, vid), text in tqdm(visit_notes.items(), desc="Encoding Notes"):
         words = extract_word(text)
         multi_hot_vector = np.zeros(vocab_size, dtype=int)
         for word in words:
@@ -74,7 +80,7 @@ def encode_note_train(visit_notes: dict, vocab_size=None) -> (dict, dict):
     return patient_visits, dictionary
 
 def main():
-    path = "/Users/pratikranjan/Desktop/vecocare_v2.0/subset_data/subset_2"
+    path = "/Users/pratikranjan/Desktop/vecocare_v2.0/subset_data"
     visit_notes = parse_notes(path)
     encoded_notes, vocab = encode_note_train(visit_notes)
     print("Processing complete. Encoded notes and vocabulary saved.")
