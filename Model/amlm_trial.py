@@ -41,14 +41,14 @@ class TransformerWithConv(nn.Module):
             Zl = Zl + self.ffn_layers[l](Zl_norm)
         return Zl
 
-def transformer_with_conv(Z0, MASK, num_heads=8, L=4):
+def transformer_with_conv(Z0,model, MASK, num_heads=8, L=4):
     d = Z0.shape[-1]
     Z0 = apply_mask(Z0, MASK)
-    model = TransformerWithConv(d=d, num_heads=num_heads, L=L)
+    # model = TransformerWithConv(d=d, num_heads=num_heads, L=L)
     ZL = model(Z0)
     return ZL
 
-def mlm_loss_patient(H, U, mask_ratio=0.15, num_heads=8, L=4):
+def mlm_loss_patient(H, U,model , mask_ratio=0.15, num_heads=8, L=4):
     """
     Computes the AMLM loss for a single patient.
     H and U are tensors of shape (t, d) (time steps x feature dimension).
@@ -94,7 +94,7 @@ def mlm_loss_patient(H, U, mask_ratio=0.15, num_heads=8, L=4):
     MASK = torch.nonzero(mask_indices, as_tuple=False)
     
     # Process through transformer with conv layers.
-    ZL = transformer_with_conv(Z0, MASK, num_heads, L)
+    ZL = transformer_with_conv(Z0,model, MASK, num_heads, L)
     
     # Split the output back into H' and U'
     H_prime, U_prime = torch.split(ZL, [d, d], dim=-1)
@@ -114,16 +114,16 @@ H_dict = load_data_from_pkl('/Users/pratikranjan/Desktop/vecocare_v2.0/base_enco
 U_dict = load_data_from_pkl('/Users/pratikranjan/Desktop/vecocare_v2.0/base_encoded_notes.pkl')
 
 # Compute the loss for each patient separately
-losses = {}
-for pid in H_dict:
-    H_patient = torch.tensor(H_dict[pid], dtype=torch.float32)
-    U_patient = torch.tensor(U_dict[pid], dtype=torch.float32)
-    Lc, Ln = mlm_loss_patient(H_patient, U_patient, mask_ratio=0.15, num_heads=8, L=4)
-    losses[pid] = {'Lc': Lc.item(), 'Ln': Ln.item()}
-    print(f"Patient {pid}: Lc = {Lc.item()}, Ln = {Ln.item()}")
+# losses = {}
+# for pid in H_dict:
+#     H_patient = torch.tensor(H_dict[pid], dtype=torch.float32)
+#     U_patient = torch.tensor(U_dict[pid], dtype=torch.float32)
+#     Lc, Ln = mlm_loss_patient(H_patient, U_patient, mask_ratio=0.15, num_heads=8, L=4)
+#     losses[pid] = {'Lc': Lc.item(), 'Ln': Ln.item()}
+#     print(f"Patient {pid}: Lc = {Lc.item()}, Ln = {Ln.item()}")
 
-# Optionally, aggregate the losses
-avg_Lc = sum(loss['Lc'] for loss in losses.values()) / len(losses)
-avg_Ln = sum(loss['Ln'] for loss in losses.values()) / len(losses)
-print(f"Average Lc Loss: {avg_Lc}")
-print(f"Average Ln Loss: {avg_Ln}")
+# # Optionally, aggregate the losses
+# avg_Lc = sum(loss['Lc'] for loss in losses.values()) / len(losses)
+# avg_Ln = sum(loss['Ln'] for loss in losses.values()) / len(losses)
+# print(f"Average Lc Loss: {avg_Lc}")
+# print(f"Average Ln Loss: {avg_Ln}")
